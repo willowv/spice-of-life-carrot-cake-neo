@@ -1,0 +1,13 @@
+{
+  "itemGroup.solcc": "Example Mod Tab",
+  "block.solcc.example_block": "Example Block",
+  "item.solcc.example_item": "Example Item",
+
+  "solcc.configuration.title": "Spice of Life: Carrot Cake Configs",
+  "solcc.configuration.section.solcc.common.toml": "Spice of Life: Carrot Cake Configs",
+  "solcc.configuration.section.solcc.common.toml.title": "Spice of Life: Carrot Cake Configs",
+  "solcc.configuration.items": "Item List",
+  "solcc.configuration.logDirtBlock": "Log Dirt Block",
+  "solcc.configuration.magicNumberIntroduction": "Magic Number Text",
+  "solcc.configuration.magicNumber": "Magic Number"
+}
