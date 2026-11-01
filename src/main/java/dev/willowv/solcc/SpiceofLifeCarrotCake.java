@@ -20,118 +20,170 @@
 
 package dev.willowv.solcc;
 
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeMap;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.*;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerWakeUpEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.neoforged.neoforge.registries.*;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.food.FoodProperties;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.material.MapColor;
-import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
-import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
 
-// The value here should match an entry in the META-INF/neoforge.mods.toml file
-@Mod(SpiceofLifeCarrotCake.MODID)
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.function.Supplier;
+
+@Mod(SpiceofLifeCarrotCake.MOD_ID)
 public class SpiceofLifeCarrotCake {
-    // Define mod id in a common place for everything to reference
-    public static final String MODID = "solcc";
-    // Directly reference a slf4j logger
+    public static final String MOD_ID = "solcc";
     public static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "solcc" namespace
-    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
-    // Create a Deferred Register to hold Items which will all be registered under the "solcc" namespace
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
-    // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "solcc" namespace
-    public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    // Creates a new Block with the id "solcc:example_block", combining the namespace and path
-    public static final DeferredBlock<Block> EXAMPLE_BLOCK = BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    // Creates a new BlockItem with the id "solcc:example_block", combining the namespace and path
-    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM = ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
+    public static final ResourceLocation healthBonusId = ResourceLocation.fromNamespaceAndPath(MOD_ID, "health_bonus");
+    private static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final Supplier<AttachmentType<SolccData>> SOLCC_DATA = ATTACHMENT_TYPES.register(
+            "solcc_data", () -> AttachmentType.serializable(SolccData::new).copyOnDeath().build()
+    );
 
-    // Creates a new food item with the id "solcc:example_id", nutrition 1 and saturation 2
-    public static final DeferredItem<Item> EXAMPLE_ITEM = ITEMS.registerSimpleItem("example_item", new Item.Properties().food(new FoodProperties.Builder()
-            .alwaysEdible().nutrition(1).saturationModifier(2f).build()));
-
-    // Creates a creative tab with the id "solcc:example_tab" for the example item, that is placed after the combat tab
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.solcc")) //The language key for the title of your CreativeModeTab
-            .withTabsBefore(CreativeModeTabs.COMBAT)
-            .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
-            .displayItems((parameters, output) -> {
-                output.accept(EXAMPLE_ITEM.get());// Add the example item to the tab. For your own tabs, this method is preferred over the event
-            }).build());
-
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public SpiceofLifeCarrotCake(IEventBus modEventBus, ModContainer modContainer) {
-        // Register the commonSetup method for modloading
-        modEventBus.addListener(this::commonSetup);
-
-        // Register the Deferred Register to the mod event bus so blocks get registered
-        BLOCKS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so items get registered
-        ITEMS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so tabs get registered
-        CREATIVE_MODE_TABS.register(modEventBus);
-
-        // Register ourselves for server and other game events we are interested in.
-        // Note that this is necessary if and only if we want *this* class (SpiceofLifeCarrotCake) to respond directly to events.
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
-        NeoForge.EVENT_BUS.register(this);
-
-        // Register the item to a creative tab
-        modEventBus.addListener(this::addCreative);
-
-        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
+        LOGGER.debug("Initialized common");
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        ATTACHMENT_TYPES.register(modEventBus);
     }
 
-    private void commonSetup(FMLCommonSetupEvent event) {
-        // Some common setup code
-        LOGGER.info("HELLO FROM COMMON SETUP");
+    @EventBusSubscriber(modid= MOD_ID)
+    private class EventHandler {
+        @SubscribeEvent
+        public static void onPlayerWakeUp(PlayerWakeUpEvent event) {
+            if(event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide()) {
+                LOGGER.debug("onPlayerWakeUp");
+                Set<ResourceLocation> uniqueFoodsEaten;
+                if(player.hasData(SOLCC_DATA)) {
+                    SolccData data = player.getData(SOLCC_DATA);
+                    uniqueFoodsEaten = data.getUniqueFoodsEaten();
+                } else {
+                    uniqueFoodsEaten = new HashSet<>();
+                }
 
-        if (Config.LOG_DIRT_BLOCK.getAsBoolean()) {
-            LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
+                LOGGER.debug("Current Data: {}", uniqueFoodsEaten);
+                Set<ResourceLocation> uniqueFoodsUneaten = SolccUtils.getUneatenFoods(uniqueFoodsEaten);
+                LOGGER.debug("Uneaten Foods: {}", uniqueFoodsUneaten);
+                uniqueFoodsUneaten.stream()
+                        .skip(new Random().nextInt((uniqueFoodsUneaten.size())))
+                        .findFirst()
+                        .ifPresent(itemKey -> {
+                            Item food = BuiltInRegistries.ITEM.get(itemKey);
+                            player.sendSystemMessage(
+                                    Component.translatable("player.solcc.craving", food.getDefaultInstance().getDisplayName())
+                                            .withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.ITALIC), false);
+                        });
+            }
         }
 
-        LOGGER.info("{}{}", Config.MAGIC_NUMBER_INTRODUCTION.get(), Config.MAGIC_NUMBER.getAsInt());
-
-        Config.ITEM_STRINGS.get().forEach((item) -> LOGGER.info("ITEM >> {}", item));
-    }
-
-    // Add the example block item to the building blocks tab
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
-            event.accept(EXAMPLE_BLOCK_ITEM);
+        @SubscribeEvent
+        public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+            Player entity = event.getEntity();
+            if(entity instanceof ServerPlayer player && !entity.level().isClientSide()) {
+                LOGGER.debug("onPlayerLoggedIn");
+                if(player.hasData(SOLCC_DATA)) {
+                    SolccData data = player.getData(SOLCC_DATA);
+                    PacketDistributor.sendToPlayer(player, data);
+                    LOGGER.debug("Sent data: {}", data.getUniqueFoodsEaten());
+                }
+            }
         }
-    }
 
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
-    @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
-        LOGGER.info("HELLO from server starting");
+        @SubscribeEvent
+        public static void onLivingEntityUseItem(LivingEntityUseItemEvent.Finish event) {
+            LivingEntity entity = event.getEntity();
+            if(entity instanceof ServerPlayer player && !entity.level().isClientSide()) {
+                LOGGER.debug("onLivingEntityUseItem");
+                // Check if the player has eaten something and if so, update their progress
+                ItemStack stack = event.getItem();
+                ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                FoodProperties props = stack.get(DataComponents.FOOD);
+                if(props != null && SolccUtils.isValidFood(props)) {
+                    LOGGER.debug("{} ate {}", player.getDisplayName(), itemKey);
+                    SolccData data = player.getData(SOLCC_DATA);
+                    Set<ResourceLocation> uniqueFoodsEaten = data.getUniqueFoodsEaten();
+                    LOGGER.debug("Existing data: {}", uniqueFoodsEaten);
+                    if(!uniqueFoodsEaten.contains(itemKey)) {
+
+                        float uniqueSaturationOld = SolccUtils.getTotalSaturation(uniqueFoodsEaten.stream());
+
+                        // Update unique foods
+                        uniqueFoodsEaten.add(itemKey);
+                        data.setUniqueFoodsEaten(uniqueFoodsEaten);
+                        player.setData(SOLCC_DATA, data);
+                        PacketDistributor.sendToPlayer(player, data);
+                        LOGGER.debug("Sent updated data: {}", data.getUniqueFoodsEaten());
+
+                        // Update health bonus
+                        float uniqueSaturationCurrent = SolccUtils.getTotalSaturation(uniqueFoodsEaten.stream());
+                        float uniqueSaturationMax = SolccUtils.getTotalSaturation(BuiltInRegistries.ITEM.stream().map(BuiltInRegistries.ITEM::getKey));
+                        float milestoneSize = uniqueSaturationMax / (Config.MAX_BONUS_HEARTS.getAsInt() + 1);
+                        double healthBonusOld = Math.floor(uniqueSaturationOld / milestoneSize) * 2;
+                        double healthBonus = Math.floor(uniqueSaturationCurrent / milestoneSize) * 2;
+                        LOGGER.debug("Saturation: {}/{}", uniqueSaturationCurrent, uniqueSaturationMax);
+                        LOGGER.debug("Health bonus: +{}", healthBonus);
+                        if(healthBonus > healthBonusOld) {
+                            player.playNotifySound(SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 1f, 0.5f);
+                            player.sendSystemMessage(
+                                    Component.translatable("player.solcc.health_bonus")
+                                            .withStyle(ChatFormatting.GOLD), false);
+                        } else {
+                            double progress = (uniqueSaturationCurrent % milestoneSize) / milestoneSize;
+                            String progressPercent = String.format("%.1f", progress * 100);
+                            player.sendSystemMessage(
+                                    Component.translatable("player.solcc.progress", progressPercent)
+                                            .withStyle(ChatFormatting.DARK_AQUA), false);
+                        }
+
+                        AttributeModifier modifier = new AttributeModifier(
+                                healthBonusId,
+                                healthBonus,
+                                AttributeModifier.Operation.ADD_VALUE);
+
+                        AttributeMap attributes = player.getAttributes();
+                        AttributeInstance healthAttribute = attributes.getInstance(Attributes.MAX_HEALTH);
+                        assert healthAttribute != null;
+                        healthAttribute.addOrReplacePermanentModifier(modifier);
+                    }
+                }
+            }
+        }
+
+        @SubscribeEvent
+        public static void register(final RegisterPayloadHandlersEvent event) {
+            final PayloadRegistrar registrar = event.registrar("1");
+            registrar.playToClient(SolccData.TYPE, SolccData.STREAM_CODEC, SpiceofLifeCarrotCakeClient::handleDataOnMain);
+        }
     }
 }

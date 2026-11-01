@@ -1,13 +1,12 @@
 {
-  "itemGroup.solcc": "Example Mod Tab",
-  "block.solcc.example_block": "Example Block",
-  "item.solcc.example_item": "Example Item",
-
   "solcc.configuration.title": "Spice of Life: Carrot Cake Configs",
   "solcc.configuration.section.solcc.common.toml": "Spice of Life: Carrot Cake Configs",
   "solcc.configuration.section.solcc.common.toml.title": "Spice of Life: Carrot Cake Configs",
-  "solcc.configuration.items": "Item List",
-  "solcc.configuration.logDirtBlock": "Log Dirt Block",
-  "solcc.configuration.magicNumberIntroduction": "Magic Number Text",
-  "solcc.configuration.magicNumber": "Magic Number"
+  "solcc.configuration.saturationThreshold": "Saturation Threshold",
+  "solcc.configuration.maxBonusHearts": "Maximum Bonus Hearts",
+  "solcc.configuration.includeUnhealthyFood": "Include Unhealthy Food?",
+  "item.tooltip.solcc.never_eaten": "A new culinary experience!",
+  "player.solcc.health_bonus": "The fire of life burns brighter within you.",
+  "player.solcc.craving": "You dream of %1$s.",
+  "player.solcc.progress": "You are %s%% of the way to your next epicurean milestone."
 }
